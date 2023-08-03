@@ -1,14 +1,27 @@
 # put here your custom config value
-menu "Example Configuration"
+menu "SmartCar Configuration"
 config ESP_WIFI_SSID
     string "WiFi SSID"
     default "myssid"
     help
-	SSID (network name) for the example to connect to.
+	SSID (network name) for the smartcar to connect to.
 
 config ESP_WIFI_PASSWORD
     string "WiFi Password"
     default "mypassword"
     help
-	WiFi password (WPA or WPA2) for the example to use.
+	WiFi password (WPA or WPA2) for the smartcar to use.
+
+config ESP_HOSTNAME
+    string "Hostname"
+    default "smartcar01"
+    help
+    Hostname for the smartcar.
+
+config UDP_PORT
+    int "Port"
+    range 0 65535
+    default 55002
+    help
+    Port for the smartcar to listen on.
 endmenu
