@@ -30,7 +30,7 @@ typedef struct {
 } control_light_event_t;
 
 typedef struct {
-    uint16_t motor_voltage;
+    uint8_t duty_cycle;
 } control_motor_event_t;
 
 void init_control_server(void);

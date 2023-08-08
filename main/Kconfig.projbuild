@@ -1,27 +1,190 @@
 # put here your custom config value
 menu "SmartCar Configuration"
-config ESP_WIFI_SSID
-    string "WiFi SSID"
-    default "myssid"
-    help
-	SSID (network name) for the smartcar to connect to.
+    config ESP_WIFI_SSID
+        string "WiFi SSID"
+        default "myssid"
+        help
+        SSID (network name) for the smartcar to connect to.
 
-config ESP_WIFI_PASSWORD
-    string "WiFi Password"
-    default "mypassword"
-    help
-	WiFi password (WPA or WPA2) for the smartcar to use.
+    config ESP_WIFI_PASSWORD
+        string "WiFi Password"
+        default "mypassword"
+        help
+        WiFi password (WPA or WPA2) for the smartcar to use.
 
-config ESP_HOSTNAME
-    string "Hostname"
-    default "smartcar01"
-    help
-    Hostname for the smartcar.
+    config ESP_HOSTNAME
+        string "Hostname"
+        default "smartcar01"
+        help
+        Hostname for the smartcar.
 
-config UDP_PORT
-    int "Port"
-    range 0 65535
-    default 55002
-    help
-    Port for the smartcar to listen on.
+    config UDP_PORT
+        int "Port"
+        range 0 65535
+        default 55002
+        help
+        Port for the smartcar to listen on.
+    
+    ###########################################################
+    # LIGHT CONTROL
+
+    config LIGHT_CONTROL
+        bool "Use light control"
+        default y
+        help
+        Set this to true if car has lights, which can be controlled by the smartcar.
+
+    config HEADLIGHT_INDIVIDUAL
+        bool "Headlights can be controlled individually"
+        default n
+        depends on LIGHT_CONTROL
+        help
+        Set this to true if the left and right headlight can be controlled individually.
+
+    config HEADLIGHT_LEFT_PIN
+        depends on LIGHT_CONTROL
+        depends on HEADLIGHT_INDIVIDUAL
+        int "Headlight left pin"
+        range 0 40
+        default 1
+        help
+        Pin for the left headlight.
+    
+    config HEADLIGHT_RIGHT_PIN
+        depends on LIGHT_CONTROL
+        depends on HEADLIGHT_INDIVIDUAL
+        int "Headlight right pin"
+        range 0 40
+        default 2
+        help
+        Pin for the right headlight.
+    
+    config HEADLIGHT_PIN
+        depends on LIGHT_CONTROL
+        depends on !HEADLIGHT_INDIVIDUAL
+        int "Headlight pin"
+        range 0 40
+        default 1
+        help
+        Pin for the headlights.
+
+    config TAILLIGHT_INDIVIDUAL
+        bool "Taillights can be controlled individually"
+        default n
+        depends on LIGHT_CONTROL
+        help
+        Set this to true if the left and right taillight can be controlled individually.
+    
+    config TAILLIGHT_LEFT_PIN
+        depends on LIGHT_CONTROL
+        depends on TAILLIGHT_INDIVIDUAL
+        int "Taillight left pin"
+        range 0 40
+        default 4
+        help
+        Pin for the left taillight.
+    
+    config TAILLIGHT_RIGHT_PIN
+        depends on LIGHT_CONTROL
+        depends on TAILLIGHT_INDIVIDUAL
+        int "Taillight right pin"
+        range 0 40
+        default 6
+        help
+        Pin for the right taillight.
+    
+    config TAILLIGHT_PIN
+        depends on LIGHT_CONTROL
+        depends on !TAILLIGHT_INDIVIDUAL
+        int "Taillight pin"
+        range 0 40
+        default 4
+        help
+        Pin for the taillights.
+    
+    config BLINKER_INDIVIDUAL
+        bool "Blinkers can be controlled individually"
+        default n
+        depends on LIGHT_CONTROL
+        help
+        Set this to true if the left and right blinker can be controlled individually.
+    
+    config BLINKER_FRONT_LEFT_PIN
+        depends on LIGHT_CONTROL
+        depends on BLINKER_INDIVIDUAL
+        int "Front left blinker pin"
+        range 0 40
+        default 8
+        help
+        Pin for the front left blinker.
+
+    config BLINKER_FRONT_RIGHT_PIN
+        depends on LIGHT_CONTROL
+        depends on BLINKER_INDIVIDUAL
+        int "Front right blinker pin"
+        range 0 40
+        default 10
+        help
+        Pin for the front right blinker.
+
+    config BLINKER_REAR_LEFT_PIN
+        depends on LIGHT_CONTROL
+        depends on BLINKER_INDIVIDUAL
+        int "Rear left blinker pin"
+        range 0 40
+        default 13
+        help
+        Pin for the rear left blinker.
+
+    config BLINKER_REAR_RIGHT_PIN
+        depends on LIGHT_CONTROL
+        depends on BLINKER_INDIVIDUAL
+        int "Rear right blinker pin"
+        range 0 40
+        default 14
+        help
+        Pin for the rear right blinker.
+
+    config BLINKER_LEFT_PIN
+        depends on LIGHT_CONTROL
+        depends on !BLINKER_INDIVIDUAL
+        int "Blinker left pin"
+        range 0 40
+        default 8
+        help
+        Pin for the left blinkers.
+    
+    config BLINKER_RIGHT_PIN
+        depends on LIGHT_CONTROL
+        depends on !BLINKER_INDIVIDUAL
+        int "Blinker right pin"
+        range 0 40
+        default 10
+        help
+        Pin for the right blinkers.
+
+    config BLINKER_INTERVAL
+        depends on LIGHT_CONTROL
+        int "Blinker interval"
+        range 0 1000
+        default 500
+        help
+        Interval for the blinkers (in ms).
+
+    ###########################################################
+    # MOTOR CONTROL
+    config MOTOR_PIN
+        int "Motor pin"
+        range 0 40
+        default 40
+        help
+        Pin for the motor.
+    
+    config MOTOR_MAX_DUTY_CYCLE
+        int "Motor max duty cycle"
+        range 0 100
+        default 100
+        help
+        Max PWM duty cycle for the motor (in %). This helps preventing the motor from overheating.
+    
 endmenu
