@@ -2,7 +2,7 @@
 set(COMPONENT_REQUIRES )
 set(COMPONENT_PRIV_REQUIRES )
 
-set(COMPONENT_SRCS "hw_controller.c" "control_server.c" "wifi.c" "main.c")
+set(COMPONENT_SRCS "control_client.c" "camera.c" "hw_controller.c" "control_server.c" "wifi.c" "main.c")
 set(COMPONENT_ADD_INCLUDEDIRS "")
 
 register_component()

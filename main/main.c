@@ -10,9 +10,12 @@
 #include "include/wifi.h"
 #include "include/control_server.h"
 #include "include/hw_controller.h"
+#include "include/camera.h"
+#include "include/control_client.h"
 
 char *TAG = "main";
 
+// event handler from UDP server
 void control_event_handler(void* handler_arg, esp_event_base_t base, int32_t id, void* event_data) {
     switch (id) {
     case CONTROL_LIGHT_EVENT:
@@ -26,6 +29,21 @@ void control_event_handler(void* handler_arg, esp_event_base_t base, int32_t id,
         control_motor_event_t *motor_event = (control_motor_event_t*) event_data;
         ESP_LOGI(TAG, "Received motor event duty cycle: %d", motor_event->duty_cycle);
         set_motor_duty(motor_event->duty_cycle);
+        break;
+    case CAMERA_CAPTURE_EVENT:
+        ESP_LOGI(TAG, "Received camera capture event");
+        camera_capture_event_t *camera_event = (camera_capture_event_t*) event_data;
+        #ifdef CONFIG_CAMERA_ENABLED
+        set_address(camera_event->dest_ip, CONFIG_CAMERA_RX_PORT);
+        camera_capture_and_send(camera_event->tag);
+        #endif
+        break;
+    case CAMERA_CONFIG_EVENT:
+        ESP_LOGI(TAG, "Received camera config event");
+        camera_config_event_t *camera_config = (camera_config_event_t*) event_data;
+        #ifdef CONFIG_CAMERA_ENABLED
+        camera_set_config(camera_config->resolution, camera_config->jpeg_quality);
+        #endif
         break;
     default:
         break;
@@ -51,5 +69,11 @@ void app_main(void) {
     register_control_server_event_handler(control_event_handler);
     start_control_server();
 
+    // Initialize hardware controller (setting up GPIO Pins)
     init_hw_controller();
+
+    // Start camera setup
+    #ifdef CONFIG_CAMERA_ENABLED
+    camera_init();
+    #endif
 }

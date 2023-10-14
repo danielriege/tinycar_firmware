@@ -20,7 +20,7 @@
 ESP_EVENT_DECLARE_BASE(CONTROL_EVENT);
 
 enum {
-    CONTROL_LIGHT_EVENT, CONTROL_MOTOR_EVENT
+    CONTROL_LIGHT_EVENT, CONTROL_MOTOR_EVENT, CAMERA_CAPTURE_EVENT, CAMERA_CONFIG_EVENT
 };
 
 typedef struct {
@@ -32,6 +32,16 @@ typedef struct {
 typedef struct {
     uint8_t duty_cycle;
 } control_motor_event_t;
+
+typedef struct {
+    uint32_t tag;
+    in_addr_t dest_ip;
+} camera_capture_event_t;\
+
+typedef struct {
+    uint8_t resolution;
+    uint8_t jpeg_quality;
+} camera_config_event_t;
 
 void init_control_server(void);
 void start_control_server(void);

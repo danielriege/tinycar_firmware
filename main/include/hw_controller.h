@@ -7,7 +7,7 @@
 #include "esp_err.h"
 #include <math.h>
 
-#define LEDC_TIMER              LEDC_TIMER_0
+#define LEDC_TIMER              LEDC_TIMER_1
 #define LEDC_MODE               LEDC_LOW_SPEED_MODE
 #define LEDC_DUTY_RES           LEDC_TIMER_13_BIT // Set duty resolution to 13 bits
 #define LEDC_FREQUENCY          (5000) // Frequency in Hertz. Set frequency at 5 kHz
@@ -16,11 +16,11 @@
 #define LEDC_DUTY_50            (4095) // Set duty to 50%. ((2 ** 13) - 1) * 50% = 4095
 #define LEDC_DUTY_100           (8191) // Set duty to 100%. ((2 ** 13) - 1) * 100% = 8191
 
-#define LEDC_HEADLIGHT_CHANNEL            LEDC_CHANNEL_0
-#define LEDC_TAILLIGHT_CHANNEL            LEDC_CHANNEL_1
-#define LEDC_LEFT_BLINKER_CHANNEL         LEDC_CHANNEL_2
-#define LEDC_RIGHT_BLINKER_CHANNEL        LEDC_CHANNEL_3
-#define LEDC_MOTOR_CHANNEL                LEDC_CHANNEL_4
+#define LEDC_HEADLIGHT_CHANNEL            LEDC_CHANNEL_1
+#define LEDC_TAILLIGHT_CHANNEL            LEDC_CHANNEL_2
+#define LEDC_LEFT_BLINKER_CHANNEL         LEDC_CHANNEL_3
+#define LEDC_RIGHT_BLINKER_CHANNEL        LEDC_CHANNEL_4
+#define LEDC_MOTOR_CHANNEL                LEDC_CHANNEL_5
 
 #define HEADLIGHT_INDEX 0
 #define HEADLIGHT_LEFT_INDEX 0

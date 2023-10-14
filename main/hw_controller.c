@@ -190,6 +190,7 @@ void init_hw_controller() {
     xTaskCreate(&blinker_task, "blinker_task", 2048, NULL, 5, NULL);
     #endif
 
+    #ifdef CONFIG_MOTOR_PIN
     ledc_channel_config_t ledc_motor_channel = {
         .speed_mode     = LEDC_MODE,
         .channel        = LEDC_MOTOR_CHANNEL,
@@ -200,6 +201,7 @@ void init_hw_controller() {
         .hpoint         = 0
     };
     ESP_ERROR_CHECK(ledc_channel_config(&ledc_motor_channel));
+    #endif
 }
 
 void set_headlight_mode(uint8_t mode) {
@@ -240,6 +242,7 @@ void set_blinker_mode(uint8_t mode) {
 }
 
 void set_motor_duty(uint8_t duty_cycle) {
+    #ifdef CONFIG_MOTOR_PIN
     uint32_t duty = duty_cycle;
     if (duty_cycle > CONFIG_MOTOR_MAX_DUTY_CYCLE) {
         duty = CONFIG_MOTOR_MAX_DUTY_CYCLE;
@@ -249,4 +252,5 @@ void set_motor_duty(uint8_t duty_cycle) {
     ledc_duty = ledc_duty / 100;
     ledc_set_duty(LEDC_MODE, LEDC_MOTOR_CHANNEL, ledc_duty);
     ledc_update_duty(LEDC_MODE, LEDC_MOTOR_CHANNEL);
+    #endif
 }

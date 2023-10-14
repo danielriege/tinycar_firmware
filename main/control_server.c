@@ -4,6 +4,11 @@ static const char *TAG = "UDP Server";
 
 #define PORT CONFIG_UDP_PORT
 
+#define UDP_CTRL_LIGHT 0x01
+#define UDP_CTRL_MOTOR 0x02
+#define UDP_CAMERA_CAP 0x03
+#define UDP_CAMERA_CFG 0x04
+
 static esp_event_loop_handle_t control_server_event_loop;
 
 ESP_EVENT_DEFINE_BASE(CONTROL_EVENT);
@@ -115,14 +120,23 @@ static void udp_server_task(void *pvParameters)
 
                 ESP_LOGI(TAG, "Received %d bytes from %s:", len, addr_str);
                 // Check if rx buffer first byte is 0x01 (light_message) or 0x02 (motor_message)
-                if (rx_buffer[0] == 0x01) {
+                if (rx_buffer[0] == UDP_CTRL_LIGHT) {
                     // light_message
                     control_light_event_t *light_event = (control_light_event_t*) (rx_buffer+1);
                     ESP_ERROR_CHECK(esp_event_post_to(control_server_event_loop, CONTROL_EVENT, CONTROL_LIGHT_EVENT, light_event, sizeof(control_light_event_t), portMAX_DELAY));
-                } else if (rx_buffer[0] == 0x02) {
+                } else if (rx_buffer[0] == UDP_CTRL_MOTOR) {
                     // motor_message
                     control_motor_event_t *motor_event = (control_motor_event_t*) (rx_buffer+1);
                     ESP_ERROR_CHECK(esp_event_post_to(control_server_event_loop, CONTROL_EVENT, CONTROL_MOTOR_EVENT, motor_event, sizeof(control_motor_event_t), portMAX_DELAY));
+                } else if (rx_buffer[0] == UDP_CAMERA_CAP) {
+                    // camera_capture
+                    camera_capture_event_t *camera_event = (camera_capture_event_t*) (rx_buffer+1);
+                    camera_event->dest_ip = ((struct sockaddr_in *)&source_addr)->sin_addr.s_addr;
+                    ESP_ERROR_CHECK(esp_event_post_to(control_server_event_loop, CONTROL_EVENT, CAMERA_CAPTURE_EVENT, camera_event, sizeof(camera_capture_event_t), portMAX_DELAY));
+                } else if (rx_buffer[0] == UDP_CAMERA_CFG) {
+                    // camera_config
+                    camera_config_event_t *camera_config = (camera_config_event_t*) (rx_buffer+1);
+                    ESP_ERROR_CHECK(esp_event_post_to(control_server_event_loop, CONTROL_EVENT, CAMERA_CONFIG_EVENT, camera_config, sizeof(camera_config_event_t), portMAX_DELAY));
                 } else {
                     ESP_LOGE(TAG, "Received unknown message type");
                 }
