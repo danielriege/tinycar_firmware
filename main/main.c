@@ -12,6 +12,7 @@
 #include "include/hw_controller.h"
 #include "include/camera.h"
 #include "include/control_client.h"
+#include "include/battery_status.h"
 
 char *TAG = "main";
 
@@ -45,6 +46,11 @@ void control_event_handler(void* handler_arg, esp_event_base_t base, int32_t id,
         camera_set_config(camera_config->resolution, camera_config->jpeg_quality);
         #endif
         break;
+    case BATTERY_REQ_EVENT:
+        ESP_LOGI(TAG, "Received battery request event");
+        int voltage = battery_status_read();
+        send_battery_status(voltage);
+        break;
     default:
         break;
     }
@@ -76,4 +82,7 @@ void app_main(void) {
     #ifdef CONFIG_CAMERA_ENABLED
     camera_init();
     #endif
+
+    // Start battery status setup
+    battery_status_init();
 }

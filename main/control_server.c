@@ -8,6 +8,7 @@ static const char *TAG = "UDP Server";
 #define UDP_CTRL_MOTOR 0x02
 #define UDP_CAMERA_CAP 0x03
 #define UDP_CAMERA_CFG 0x04
+#define UDP_BATTERY_REQ 0x05
 
 static esp_event_loop_handle_t control_server_event_loop;
 
@@ -137,6 +138,9 @@ static void udp_server_task(void *pvParameters)
                     // camera_config
                     camera_config_event_t *camera_config = (camera_config_event_t*) (rx_buffer+1);
                     ESP_ERROR_CHECK(esp_event_post_to(control_server_event_loop, CONTROL_EVENT, CAMERA_CONFIG_EVENT, camera_config, sizeof(camera_config_event_t), portMAX_DELAY));
+                } else if (rx_buffer[0] == UDP_BATTERY_REQ) {
+                    // battery_request
+                    ESP_ERROR_CHECK(esp_event_post_to(control_server_event_loop, CONTROL_EVENT, BATTERY_REQ_EVENT, NULL, 0, portMAX_DELAY));
                 } else {
                     ESP_LOGE(TAG, "Received unknown message type");
                 }

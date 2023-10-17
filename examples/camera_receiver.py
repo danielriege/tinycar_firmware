@@ -87,6 +87,10 @@ def handle_data():
                 bytes_for_frame = frame_buf_size
                 bytes_in_frame_buffer = 0
             elif data[0] == FRAME_FRAGMENT:
+                if frame_buffer is None:
+                    if DEBUG:
+                        print("received fragment before metadata")
+                    continue
                 fragment_tag = int.from_bytes(data[1:5], byteorder='big')
                 fragment_index = int.from_bytes(data[5:9], byteorder='big')
                 fragment_size = int.from_bytes(data[9:11], byteorder='big')
@@ -134,9 +138,10 @@ def receive_frame():
 
     while True:
         data, addr = s.recvfrom(1024)
-        data_queue.put(data)
+        if data is not None:
+            data_queue.put(data)
 
-def request_frame(tag, ):
+def request_frame(tag):
     global sended_tag, start_new_frame_time
     sended_tag = tag
     start_new_frame_time = time.time()
