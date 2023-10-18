@@ -13,6 +13,7 @@
 #include "include/camera.h"
 #include "include/control_client.h"
 #include "include/battery_status.h"
+#include "include/servo.h"
 
 char *TAG = "main";
 
@@ -35,7 +36,7 @@ void control_event_handler(void* handler_arg, esp_event_base_t base, int32_t id,
         ESP_LOGI(TAG, "Received camera capture event");
         camera_capture_event_t *camera_event = (camera_capture_event_t*) event_data;
         #ifdef CONFIG_CAMERA_ENABLED
-        set_address(camera_event->dest_ip, CONFIG_CAMERA_RX_PORT);
+        cc_set_address(camera_event->response_address.dest_ip, CONFIG_CAMERA_RX_PORT);
         camera_capture_and_send(camera_event->tag);
         #endif
         break;
@@ -43,13 +44,21 @@ void control_event_handler(void* handler_arg, esp_event_base_t base, int32_t id,
         ESP_LOGI(TAG, "Received camera config event");
         camera_config_event_t *camera_config = (camera_config_event_t*) event_data;
         #ifdef CONFIG_CAMERA_ENABLED
+        cc_set_address(camera_config->response_address.dest_ip, CONFIG_CAMERA_RX_PORT);
         camera_set_config(camera_config->resolution, camera_config->jpeg_quality);
         #endif
         break;
     case BATTERY_REQ_EVENT:
         ESP_LOGI(TAG, "Received battery request event");
+        battery_status_req_event_t *battery_req = (battery_status_req_event_t*) event_data;
+        cc_set_address(battery_req->response_address.dest_ip, CONFIG_CAMERA_RX_PORT);
         int voltage = battery_status_read();
         send_battery_status(voltage);
+        break;
+    case SERVO_CONTROL_EVENT:
+        ESP_LOGI(TAG, "Received servo control event");
+        servo_control_event_t *servo_event = (servo_control_event_t*) event_data;
+        servo_set_angle(servo_event->angle);
         break;
     default:
         break;
@@ -77,6 +86,9 @@ void app_main(void) {
 
     // Initialize hardware controller (setting up GPIO Pins)
     init_hw_controller();
+
+    // init servo
+    init_servo();
 
     // Start camera setup
     #ifdef CONFIG_CAMERA_ENABLED

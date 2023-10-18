@@ -4,12 +4,6 @@ static const char *TAG = "UDP Server";
 
 #define PORT CONFIG_UDP_PORT
 
-#define UDP_CTRL_LIGHT 0x01
-#define UDP_CTRL_MOTOR 0x02
-#define UDP_CAMERA_CAP 0x03
-#define UDP_CAMERA_CFG 0x04
-#define UDP_BATTERY_REQ 0x05
-
 static esp_event_loop_handle_t control_server_event_loop;
 
 ESP_EVENT_DEFINE_BASE(CONTROL_EVENT);
@@ -120,27 +114,33 @@ static void udp_server_task(void *pvParameters)
                 }
 
                 ESP_LOGI(TAG, "Received %d bytes from %s:", len, addr_str);
-                // Check if rx buffer first byte is 0x01 (light_message) or 0x02 (motor_message)
-                if (rx_buffer[0] == UDP_CTRL_LIGHT) {
+                if (rx_buffer[0] == PROTOCOL_IN_CTRL_LIGHT) {
                     // light_message
                     control_light_event_t *light_event = (control_light_event_t*) (rx_buffer+1);
                     ESP_ERROR_CHECK(esp_event_post_to(control_server_event_loop, CONTROL_EVENT, CONTROL_LIGHT_EVENT, light_event, sizeof(control_light_event_t), portMAX_DELAY));
-                } else if (rx_buffer[0] == UDP_CTRL_MOTOR) {
+                } else if (rx_buffer[0] == PROTOCOL_IN_CTRL_MOTOR) {
                     // motor_message
                     control_motor_event_t *motor_event = (control_motor_event_t*) (rx_buffer+1);
                     ESP_ERROR_CHECK(esp_event_post_to(control_server_event_loop, CONTROL_EVENT, CONTROL_MOTOR_EVENT, motor_event, sizeof(control_motor_event_t), portMAX_DELAY));
-                } else if (rx_buffer[0] == UDP_CAMERA_CAP) {
+                } else if (rx_buffer[0] == PROTOCOL_IN_CAMERA_CAP) {
                     // camera_capture
                     camera_capture_event_t *camera_event = (camera_capture_event_t*) (rx_buffer+1);
-                    camera_event->dest_ip = ((struct sockaddr_in *)&source_addr)->sin_addr.s_addr;
+                    camera_event->response_address.dest_ip = ((struct sockaddr_in *)&source_addr)->sin_addr.s_addr;
                     ESP_ERROR_CHECK(esp_event_post_to(control_server_event_loop, CONTROL_EVENT, CAMERA_CAPTURE_EVENT, camera_event, sizeof(camera_capture_event_t), portMAX_DELAY));
-                } else if (rx_buffer[0] == UDP_CAMERA_CFG) {
+                } else if (rx_buffer[0] == PROTOCOL_IN_CAMERA_CFG) {
                     // camera_config
                     camera_config_event_t *camera_config = (camera_config_event_t*) (rx_buffer+1);
+                    camera_config->response_address.dest_ip = ((struct sockaddr_in *)&source_addr)->sin_addr.s_addr;
                     ESP_ERROR_CHECK(esp_event_post_to(control_server_event_loop, CONTROL_EVENT, CAMERA_CONFIG_EVENT, camera_config, sizeof(camera_config_event_t), portMAX_DELAY));
-                } else if (rx_buffer[0] == UDP_BATTERY_REQ) {
+                } else if (rx_buffer[0] == PROTOCOL_IN_BATTERY_REQ) {
                     // battery_request
-                    ESP_ERROR_CHECK(esp_event_post_to(control_server_event_loop, CONTROL_EVENT, BATTERY_REQ_EVENT, NULL, 0, portMAX_DELAY));
+                    battery_status_req_event_t *battery_req = (battery_status_req_event_t*) (rx_buffer+1);
+                    battery_req->response_address.dest_ip = ((struct sockaddr_in *)&source_addr)->sin_addr.s_addr;
+                    ESP_ERROR_CHECK(esp_event_post_to(control_server_event_loop, CONTROL_EVENT, BATTERY_REQ_EVENT, battery_req, sizeof(battery_status_req_event_t), portMAX_DELAY));
+                } else if (rx_buffer[0] == PROTOCOL_IN_SERVO_CTRL) {
+                    // servo_control
+                    servo_control_event_t *servo_event = (servo_control_event_t*) (rx_buffer+1);
+                    ESP_ERROR_CHECK(esp_event_post_to(control_server_event_loop, CONTROL_EVENT, SERVO_CONTROL_EVENT, servo_event, sizeof(servo_control_event_t), portMAX_DELAY));
                 } else {
                     ESP_LOGE(TAG, "Received unknown message type");
                 }

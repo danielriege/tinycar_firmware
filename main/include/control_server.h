@@ -17,31 +17,13 @@
 #include "lwip/sys.h"
 #include <lwip/netdb.h>
 
+#include "protocol.h"
+
 ESP_EVENT_DECLARE_BASE(CONTROL_EVENT);
 
 enum {
-    CONTROL_LIGHT_EVENT, CONTROL_MOTOR_EVENT, CAMERA_CAPTURE_EVENT, CAMERA_CONFIG_EVENT, BATTERY_REQ_EVENT
+    CONTROL_LIGHT_EVENT, CONTROL_MOTOR_EVENT, CAMERA_CAPTURE_EVENT, CAMERA_CONFIG_EVENT, BATTERY_REQ_EVENT, SERVO_CONTROL_EVENT
 };
-
-typedef struct {
-    uint8_t headlight;
-    uint8_t taillight;
-    uint8_t blinker;
-} control_light_event_t;
-
-typedef struct {
-    uint8_t duty_cycle;
-} control_motor_event_t;
-
-typedef struct {
-    uint32_t tag;
-    in_addr_t dest_ip;
-} camera_capture_event_t;\
-
-typedef struct {
-    uint8_t resolution;
-    uint8_t jpeg_quality;
-} camera_config_event_t;
 
 void init_control_server(void);
 void start_control_server(void);

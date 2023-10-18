@@ -23,8 +23,6 @@ static const char *TAG = "camera";
 #define CAM_PIN_HREF    7
 #define CAM_PIN_PCLK    13
 
-#define UDP_DGRAM_SIZE  1024
-
 static camera_config_t camera_config = {
     .pin_pwdn  = CAM_PIN_PWDN,
     .pin_reset = CAM_PIN_RESET,
@@ -57,64 +55,35 @@ static camera_config_t camera_config = {
     .grab_mode = CAMERA_GRAB_WHEN_EMPTY//CAMERA_GRAB_LATEST. Sets when buffers should be filled
 };
 
-static uint8_t tx_buffer[UDP_DGRAM_SIZE];
-
 static void send_frame_metadata(size_t tag, size_t height, size_t width, uint8_t pixelformat, size_t buf_len) {
-    uint8_t frame_metadata[14];
-    // first byte is frame metadata descriptor
-    frame_metadata[0] = 0x00;
-    // next 4 bytes are tag
-    frame_metadata[1] = tag >> 24;
-    frame_metadata[2] = tag >> 16;
-    frame_metadata[3] = tag >> 8;
-    frame_metadata[4] = tag & 0xFF;
-    // next 2 bytes are height
-    frame_metadata[5] = height >> 8;
-    frame_metadata[6] = height & 0xFF;
-    // next 2 bytes are width
-    frame_metadata[7] = width >> 8;
-    frame_metadata[8] = width & 0xFF;
-    // next byte is pixelformat
-    frame_metadata[9] = pixelformat;
-    // next 4 bytes are buf_len
-    frame_metadata[10] = buf_len >> 24;
-    frame_metadata[11] = buf_len >> 16;
-    frame_metadata[12] = buf_len >> 8;
-    frame_metadata[13] = buf_len & 0xFF;
-    send_data(frame_metadata, 14);
+    frame_metadata_event_t* frame_metadata = (frame_metadata_event_t*) cc_get_buffer();
+    frame_metadata->tag = tag;
+    frame_metadata->height = height;
+    frame_metadata->width = width;
+    frame_metadata->pixel_format = pixelformat;
+    frame_metadata->frame_size = buf_len;
+    cc_send_data(PROTOCOL_OUT_FRAME_METADATA, (uint8_t*) frame_metadata, sizeof(frame_metadata_event_t));
 }
 
 // send a fragment of a frame to a server
 static void send_fragment(uint8_t * fragment, size_t fragment_size, uint32_t tag, uint32_t fragment_id) {
-    if (fragment_size > UDP_DGRAM_SIZE - 11) {
+    if (fragment_size > DGRAM_SIZE - 11) {
         ESP_LOGE(TAG, "Fragment size too large");
         return;
     }
-    // first byte is fragment descriptor
-    tx_buffer[0] = 0x01;
-    // next 4 bytes are tag
-    tx_buffer[1] = tag >> 24;
-    tx_buffer[2] = tag >> 16;
-    tx_buffer[3] = tag >> 8;
-    tx_buffer[4] = tag & 0xFF;
-    // next 4 bytes are fragment id
-    tx_buffer[5] = fragment_id >> 24;
-    tx_buffer[6] = fragment_id >> 16;
-    tx_buffer[7] = fragment_id >> 8;
-    tx_buffer[8] = fragment_id & 0xFF;
-    // next 2 bytes are fragment size
-    tx_buffer[9] = fragment_size >> 8;
-    tx_buffer[10] = fragment_size & 0xFF;
-    // next bytes are fragment
-    memcpy(tx_buffer+11, fragment, fragment_size);
-    send_data(tx_buffer, fragment_size+11);
+    frame_fragment_event_t* frame_fragment = (frame_fragment_event_t*) cc_get_buffer();
+    frame_fragment->tag = tag;
+    frame_fragment->fragment_id = fragment_id;
+    frame_fragment->fragment_size = fragment_size;
+    memcpy(cc_get_buffer()+sizeof(frame_fragment_event_t), fragment, fragment_size);
+    cc_send_data(PROTOCOL_OUT_FRAME_FRAGMENT, (uint8_t*) frame_fragment, sizeof(frame_fragment_event_t) + fragment_size);
 }
 
 // Send a frame to a server
 static void send_frame(uint8_t *frame_buf, size_t frame_buf_len, uint32_t tag) {
 
     // fragmentation of frame
-    size_t fragment_max_size = UDP_DGRAM_SIZE - 12;
+    size_t fragment_max_size = DGRAM_SIZE - sizeof(frame_fragment_event_t) - 1; // 1 for message type
     size_t fragment_count = frame_buf_len / fragment_max_size + 1;
     for (size_t i = 0; i < fragment_count; i++) {
         size_t fragment_size = fragment_max_size;

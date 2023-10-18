@@ -23,9 +23,9 @@ bytes_for_frame = 0
 fragment_max_size = 1024 - 12
 sended_tag = -1
 
-FRAME_METADATA = 0x00
-FRAME_FRAGMENT = 0x01
-BATTERY_STATUS = 0x02
+FRAME_METADATA = 0x01
+FRAME_FRAGMENT = 0x02
+BATTERY_STATUS = 0x03
 
 TIMEOUT = 0.1 # s to wait for a packet before discarding the frame
 start_new_frame_time = 0

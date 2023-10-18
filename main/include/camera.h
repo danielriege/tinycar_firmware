@@ -9,6 +9,7 @@
 #include "esp_camera.h"
 
 #include "control_client.h"
+#include "protocol.h"
 
 
 esp_err_t camera_init();
