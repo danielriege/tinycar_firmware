@@ -1,4 +1,4 @@
-#include "include/wifi.h"
+#include "wifi.h"
 
 /* FreeRTOS event group to signal when we are connected*/
 static EventGroupHandle_t s_wifi_event_group;
@@ -33,6 +33,12 @@ static void event_handler(void* arg, esp_event_base_t event_base,
         ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
         ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
         s_retry_num = 0;
+
+        // get signal strength
+        wifi_ap_record_t ap;
+        esp_wifi_sta_get_ap_info(&ap);
+        ESP_LOGI(TAG, "RSSI: %d\n", ap.rssi);
+
         xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
     }
 }
@@ -96,4 +102,10 @@ void wifi_init_sta(void)
     } else {
         ESP_LOGE(TAG, "UNEXPECTED EVENT");
     }
+}
+
+int8_t wifi_read_rssi() {
+    wifi_ap_record_t ap;
+    esp_wifi_sta_get_ap_info(&ap);
+    return ap.rssi;
 }

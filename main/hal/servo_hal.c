@@ -1,4 +1,4 @@
-#include "include/servo.h"
+#include "servo_hal.h"
 
 static const char *TAG = "servo";
 
@@ -33,10 +33,16 @@ void servo_set_duty_cycle(uint16_t duty_cycle) {
 }
 
 void servo_set_angle(uint16_t angle) {
-    if (angle > 18000) {
-        ESP_LOGE(TAG, "Angle must be between 0 and 18000");
-        return;
+    #ifdef CONFIG_SERVO_MAX_STEERING_ANGLE
+    uint16_t max_angle = (CONFIG_SERVO_MAX_STEERING_ANGLE * 100) + 9000;
+    uint16_t min_angle = 9000 - (CONFIG_SERVO_MAX_STEERING_ANGLE * 100);
+    if (angle > max_angle) {
+        angle = max_angle;
+    }
+    if (angle < min_angle) {
+        angle = min_angle;
     }
     uint16_t duty_cycle = (uint16_t) (SERVO_DUTY_CYCLE_MIN + (SERVO_DUTY_CYCLE_MAX - SERVO_DUTY_CYCLE_MIN) * angle / 18000);
     servo_set_duty_cycle(duty_cycle);
+    #endif
 }

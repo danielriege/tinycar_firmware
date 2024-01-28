@@ -14,3 +14,4 @@
 #include "lwip/sys.h"
 
 void wifi_init_sta(void);
+int8_t wifi_read_rssi(void);

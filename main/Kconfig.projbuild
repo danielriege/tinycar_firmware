@@ -24,30 +24,10 @@ menu "Tinycar Configuration"
         default 55002
         help
         Port for the Tinycar to listen on.
-    
-    choice HARDWARE_BOARD
-        prompt "Hardware Board"
-        default HARDWARE_BOARD_TINYCARESP
-        help
-            Select the hardware board you are using.
-            On a custom board (ESP32 Dev board), you need to set the pin configuration in the next step.
-        
-        config HARDWARE_BOARD_CUSTOM
-            bool "Custom (ESP32 dev board)"
-            help
-                Select this if you are using a custom board meaning a ESP32 dev board with external motor drivers etc..
-                You need to set the pin configuration in the next step.
-
-        config HARDWARE_BOARD_TINYCARESP
-            bool "Tinycar ESP"
-            help
-                Select this if you are using the Tinycar ESP board.
-    endchoice
 
     ###########################################################
     # CAMERA
     config CAMERA_ENABLED
-        depends on HARDWARE_BOARD_TINYCARESP
         bool "Use camera"
         default n
         help
@@ -64,7 +44,6 @@ menu "Tinycar Configuration"
     ###########################################################
     # BATTERY MEASUREMENT
     config BATTERY_MEASUREMENT
-        depends on HARDWARE_BOARD_TINYCARESP
         bool "Use battery voltage measurement"
         default y
         help
@@ -73,11 +52,18 @@ menu "Tinycar Configuration"
     ###########################################################
     # SERVO CONTROL
     config SERVO_CONTROL
-        depends on HARDWARE_BOARD_TINYCARESP
         bool "Use servo control"
         default n
         help
         Set this to true if car has a servo.
+
+    config SERVO_MAX_STEERING_ANGLE
+        depends on SERVO_CONTROL
+        int "Servo max steering angle"
+        range 0 40
+        default 25
+        help
+        Max angle for the steering (in degrees).
     
     ###########################################################
     # LIGHT CONTROL
@@ -86,131 +72,7 @@ menu "Tinycar Configuration"
         bool "Use light control"
         default y
         help
-        Set this to true if car has lights, which can be controlled by the Tinycar.
-
-    config HEADLIGHT_INDIVIDUAL
-        bool "Headlights can be controlled individually"
-        default n
-        depends on LIGHT_CONTROL 
-        depends on HARDWARE_BOARD_CUSTOM
-        help
-        Set this to true if the left and right headlight can be controlled individually (Two seperate Pins).
-
-    config HEADLIGHT_LEFT_PIN
-        depends on HEADLIGHT_INDIVIDUAL
-        int "Headlight left pin"
-        range 0 40
-        default 1
-        help
-        Pin for the left headlight.
-    
-    config HEADLIGHT_RIGHT_PIN
-        depends on HEADLIGHT_INDIVIDUAL
-        int "Headlight right pin"
-        range 0 40
-        default 2
-        help
-        Pin for the right headlight.
-    
-    config HEADLIGHT_PIN
-        depends on !HEADLIGHT_INDIVIDUAL
-        depends on LIGHT_CONTROL
-        int "Headlight pin"
-        range 0 40
-        default 1
-        help
-        Pin for the headlights. Default is for the Tinycar ESP board.
-
-    config TAILLIGHT_INDIVIDUAL
-        bool "Taillights can be controlled individually"
-        default n
-        depends on LIGHT_CONTROL
-        depends on HARDWARE_BOARD_CUSTOM
-        help
-        Set this to true if the left and right taillight can be controlled individually (Two seperate Pins).
-    
-    config TAILLIGHT_LEFT_PIN
-        depends on TAILLIGHT_INDIVIDUAL
-        int "Taillight left pin"
-        range 0 40
-        default 4
-        help
-        Pin for the left taillight.
-    
-    config TAILLIGHT_RIGHT_PIN
-        depends on TAILLIGHT_INDIVIDUAL
-        int "Taillight right pin"
-        range 0 40
-        default 6
-        help
-        Pin for the right taillight.
-    
-    config TAILLIGHT_PIN
-        depends on !TAILLIGHT_INDIVIDUAL
-        depends on LIGHT_CONTROL
-        int "Taillight pin"
-        range 0 40
-        default 4
-        help
-        Pin for the taillights. Default is for the Tinycar ESP board.
-    
-    config BLINKER_INDIVIDUAL
-        bool "Blinkers can be controlled individually"
-        default n
-        depends on LIGHT_CONTROL
-        depends on HARDWARE_BOARD_CUSTOM
-        help
-        Set this to true if the left and right blinker can be controlled individually (Two seperate Pins).
-    
-    config BLINKER_FRONT_LEFT_PIN
-        depends on BLINKER_INDIVIDUAL
-        int "Front left blinker pin"
-        range 0 40
-        default 8
-        help
-        Pin for the front left blinker.
-
-    config BLINKER_FRONT_RIGHT_PIN
-        depends on BLINKER_INDIVIDUAL
-        int "Front right blinker pin"
-        range 0 40
-        default 10
-        help
-        Pin for the front right blinker.
-
-    config BLINKER_REAR_LEFT_PIN
-        depends on BLINKER_INDIVIDUAL
-        int "Rear left blinker pin"
-        range 0 40
-        default 13
-        help
-        Pin for the rear left blinker.
-
-    config BLINKER_REAR_RIGHT_PIN
-        depends on BLINKER_INDIVIDUAL
-        int "Rear right blinker pin"
-        range 0 40
-        default 14
-        help
-        Pin for the rear right blinker.
-
-    config BLINKER_LEFT_PIN
-        depends on !BLINKER_INDIVIDUAL
-        depends on LIGHT_CONTROL
-        int "Blinker left pin"
-        range 0 40
-        default 8
-        help
-        Pin for the left blinkers. Default is for the Tinycar ESP board.
-    
-    config BLINKER_RIGHT_PIN
-        depends on !BLINKER_INDIVIDUAL
-        depends on LIGHT_CONTROL
-        int "Blinker right pin"
-        range 0 40
-        default 10
-        help
-        Pin for the right blinkers. Default is for the Tinycar ESP board.
+        Set this to true if car has lights, which can be controlled.
 
     config BLINKER_INTERVAL
         depends on LIGHT_CONTROL
@@ -222,14 +84,19 @@ menu "Tinycar Configuration"
 
     ###########################################################
     # MOTOR CONTROL
-    config MOTOR_PIN
-        depends on HARDWARE_BOARD_CUSTOM
-        int "Motor pin"
-        range 0 40
-        default 40
+    config MOTOR_PWM_FREQ
+        int "Motor PWM frequency"
+        range 0 50000
+        default 50000
         help
-        Pin for the motor (Single MOSFET circuit).
-    
+        PWM frequency for the motor (in Hz).
+
+    config MOTOR_INVERT_DIR
+        bool "Motor invert direction"
+        default n
+        help
+        Invert the motor direction.
+
     config MOTOR_MAX_DUTY_CYCLE
         int "Motor max duty cycle"
         range 0 100

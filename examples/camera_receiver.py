@@ -10,28 +10,8 @@ import queue
 
 HOST = os.getenv("HOST","tinycar01.local")
 DEBUG = int(os.getenv("DEBUG", 0))
-CONTINOUS = int(os.getenv("STREAM", 0))
-PORT = os.getenv("PORT", 55002)
-CAM_PORT = os.getenv("CAM_PORT", 55003)
-JPEG_QUALITY = int(os.getenv("JPEG_QUALITY", 58))
-PIXELFORMAT = int(os.getenv("PIXELFORMAT", 8))
-
-frame_buffer = None
-frame_buffer_view = None
-bytes_in_frame_buffer = 0
-bytes_for_frame = 0
-fragment_max_size = 1024 - 12
-sended_tag = -1
-
-FRAME_METADATA = 0x01
-FRAME_FRAGMENT = 0x02
-BATTERY_STATUS = 0x03
-
-TIMEOUT = 0.1 # s to wait for a packet before discarding the frame
-start_new_frame_time = 0
-ended_frame_time = 0
-last_imshow = 0
-
+RTP_PORT = os.getenv("PORT", 4998)
+TCCP_PORT = os.getenv("TCCP_PORT", 55002)
 
 data_queue = queue.Queue()
 
@@ -58,116 +38,72 @@ def decode_jpeg_frame(frame_buffer):
     cv2.imshow("Frame", img)
     if cv2.waitKey(1) == ord('q'):
         cv2.destroyAllWindows()
-        return False
-    return CONTINOUS
 
-
-def handle_data():
-    global frame_buffer, frame_buffer_view, sended_tag, bytes_in_frame_buffer, bytes_for_frame, last_fragment_time, start_new_frame_time, ended_frame_time
+def handle_rtp():
     while True:
-        try:
-            data = data_queue.get(timeout=TIMEOUT)
+        data = data_queue.get()
+        # get marker from RTP header
+        marker = (data[1] & 0x80) >> 7
+        sequence_number = int.from_bytes(data[2:4], byteorder='big')
+        timestamp = int.from_bytes(data[4:8], byteorder='big')
+        fragment_offset = int.from_bytes(data[12:16], byteorder='big')
+        width = int(data[18])
+        height = int(data[19])
+        frame_buffer = data[20:]
+        if DEBUG > 1:
+            print(f"RTP: marker: {marker}, sequence_number: {sequence_number}, timestamp: {timestamp}, fragment_offset: {fragment_offset}, width: {width}, height: {height}")
+        
 
-            if data[0] == FRAME_METADATA:
-                # it is a metadata packet
-                current_tag = int.from_bytes(data[1:5], byteorder='big')
-                height = int.from_bytes(data[5:7], byteorder='big')
-                width = int.from_bytes(data[7:9], byteorder='big')
-                pixelformat = int(data[9])
-                frame_buf_size = int.from_bytes(data[10:14], byteorder='big')
-                if DEBUG > 2:
-                    print(f"tag: {current_tag}, height: {height}, width: {width}, pixelformat: {pixelformat}, frame_buf_size: {frame_buf_size}")
-                if current_tag != sended_tag:
-                    if DEBUG:
-                        print("received metadata for a frame we did not request")
-                    continue
-                # allocating frame buffer
-                frame_buffer = bytearray(frame_buf_size)
-                #frame_buffer_view = memoryview(frame_buffer)
-                bytes_for_frame = frame_buf_size
-                bytes_in_frame_buffer = 0
-            elif data[0] == FRAME_FRAGMENT:
-                if frame_buffer is None:
-                    if DEBUG:
-                        print("received fragment before metadata")
-                    continue
-                fragment_tag = int.from_bytes(data[1:5], byteorder='big')
-                fragment_index = int.from_bytes(data[5:9], byteorder='big')
-                fragment_size = int.from_bytes(data[9:11], byteorder='big')
-                if DEBUG > 2:
-                    print(f"fragment_tag: {fragment_tag}, fragment_index: {fragment_index}, fragment_size: {fragment_size}")
-                if fragment_tag == sended_tag:
-                    # it is possible that fragments arrive out of order
-                    # we need to buffer them until we have all of them
-                    begin = fragment_index*fragment_max_size
-                    end = begin + fragment_size
-                    frame_buffer[begin:end] = data[11:11+fragment_size]
-                    bytes_in_frame_buffer += fragment_size
-                    if bytes_in_frame_buffer == bytes_for_frame:
-                        ended_frame_time = time.time()
-                        if DEBUG > 1:
-                            took = ended_frame_time - start_new_frame_time
-                            print(f"frame received in {took*1000} ms with {bytes_for_frame} bytes")
-                        if decode_jpeg_frame(frame_buffer):
-                            request_frame(sended_tag + 1)
-            else:
-                if DEBUG:
-                    print(f"unknown packet type: {data[0]}")
 
-        except queue.Empty:
-            # Handle the case where the queue is empty
-            # if last frame is not complete, we discard it
-            if bytes_in_frame_buffer != bytes_for_frame:
-                if DEBUG:
-                    print("discarding incomplete frame")
-                bytes_in_frame_buffer = 0
-                bytes_for_frame = 0
-                if CONTINOUS:
-                    request_frame(sended_tag+1)
-                continue
 
-def receive_frame():
+def rtp_receive():
     # Create a UDP socket
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     # Bind the socket to the port
-    server_address = ("0.0.0.0", CAM_PORT)
+    server_address = ("0.0.0.0", RTP_PORT)
     s.bind(server_address)
-
-    if DEBUG:
-        print(f"listening for incoming messages")
 
     while True:
         data, addr = s.recvfrom(1024)
         if data is not None:
             data_queue.put(data)
 
-def request_frame(tag):
-    global sended_tag, start_new_frame_time
-    sended_tag = tag
-    start_new_frame_time = time.time()
-    # send a udp packet to the car to start the camera stream
-    if DEBUG > 1:
-        print(f"requesting frame tag: {tag}")
-    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-        s.sendto(b'\x03' + tag.to_bytes(4, byteorder='little'), (HOST, PORT))
+def tccp_receive():
+    # Create a UDP socket
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    # Bind the socket to the port
+    server_address = ("0.0.0.0", TCCP_PORT)
+    s.bind(server_address)
 
-def request_camera_config():
-    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-        s.sendto(b'\x04' + PIXELFORMAT.to_bytes(1, byteorder='little') + JPEG_QUALITY.to_bytes(1, byteorder='little'), (HOST, PORT))
+    while True:
+        data, addr = s.recvfrom(1024)
+        if data is not None:
+            fps = int.from_bytes(data[3:4], byteorder='big')
+            min_latency = int.from_bytes(data[4:6], byteorder='big')
+            print(f"Congestion Control Telemetry: fps: {fps}, min_latency: {min_latency}")
 
+def send_control_packet():
+    # construct control packet
+    control_packet = bytearray(5)
+    control_packet[0] = 0x01 << 7 # version
+
+    # send control packet
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        server_address = (HOST, TCCP_PORT)
+        s.sendto(control_packet, server_address)
 
 def main():
-    handle_thread = threading.Thread(target=handle_data)
+    handle_thread = threading.Thread(target=handle_rtp)
     handle_thread.start()
 
-    receive_thread = threading.Thread(target=receive_frame)
+    receive_thread = threading.Thread(target=rtp_receive)
     receive_thread.start()
-    time.sleep(1)
-    #request_camera_config() # very buggy
-    time.sleep(1)
-    request_frame(0)
-    
-                
+
+    receive_tccp_thread = threading.Thread(target=tccp_receive)
+    receive_tccp_thread.start()
+
+        
+    send_control_packet()
 
 if __name__ == "__main__":
     main()

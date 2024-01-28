@@ -7,65 +7,73 @@
 #include "esp_log.h"
 #include "nvs_flash.h"
 
-#include "include/wifi.h"
-#include "include/control_server.h"
-#include "include/hw_controller.h"
-#include "include/camera.h"
-#include "include/control_client.h"
-#include "include/battery_status.h"
-#include "include/servo.h"
+#include "wifi.h"
+#include "protocol/tccp.h"
+#include "protocol/rtp.h"
+
+#include "hal/led_hal.h"
+#include "hal/camera_hal.h"
+#include "hal/battery_status_hal.h"
+#include "hal/servo_hal.h"
+#include "hal/motor_hal.h"
+
+#include "congestion_control.h"
+
 
 char *TAG = "main";
+
+static congestion_control_t congestion_control_params;
 
 // event handler from UDP server
 void control_event_handler(void* handler_arg, esp_event_base_t base, int32_t id, void* event_data) {
     switch (id) {
-    case CONTROL_LIGHT_EVENT:
-        control_light_event_t *light_event = (control_light_event_t*) event_data;
-        ESP_LOGI(TAG, "Received light event headlight: %d, taillight: %d, blinker: %d", light_event->headlight, light_event->taillight, light_event->blinker);
-        set_headlight_mode(light_event->headlight);
-        set_taillight_mode(light_event->taillight);
-        set_blinker_mode(light_event->blinker);
-        break;
-    case CONTROL_MOTOR_EVENT:
-        control_motor_event_t *motor_event = (control_motor_event_t*) event_data;
-        ESP_LOGI(TAG, "Received motor event duty cycle: %d", motor_event->duty_cycle);
-        set_motor_duty(motor_event->duty_cycle);
-        break;
-    case CAMERA_CAPTURE_EVENT:
-        ESP_LOGI(TAG, "Received camera capture event");
-        camera_capture_event_t *camera_event = (camera_capture_event_t*) event_data;
-        #ifdef CONFIG_CAMERA_ENABLED
-        cc_set_address(camera_event->response_address.dest_ip, CONFIG_CAMERA_RX_PORT);
-        camera_capture_and_send(camera_event->tag);
+    case TCCP_CONTROL_EVENT: ;
+        tccp_control_t *control = (tccp_control_t*) event_data;
+        ESP_LOGI(TAG, "Received control event headlight: %d, taillight: %d, blinker: %d, servo angle: %d, motor duty cycle: %d", control->headlight, control->taillight, control->blinker, control->servo_angle, control->motor_duty_cycle);
+
+        #ifdef CONFIG_LIGHT_CONTROL
+        led_set_headlight_mode(control->headlight);
+        led_set_taillight_mode(control->taillight);
+        led_set_blinker_mode(control->blinker);
         #endif
-        break;
-    case CAMERA_CONFIG_EVENT:
-        ESP_LOGI(TAG, "Received camera config event");
-        camera_config_event_t *camera_config = (camera_config_event_t*) event_data;
+
+        servo_set_angle(control->servo_angle);
+        motor_set_duty_cycle(control->motor_duty_cycle);
+        // set destination for rtp
+        in_addr_t* dest_ip = get_address_ref();
         #ifdef CONFIG_CAMERA_ENABLED
-        cc_set_address(camera_config->response_address.dest_ip, CONFIG_CAMERA_RX_PORT);
-        camera_set_config(camera_config->resolution, camera_config->jpeg_quality);
+        rtp_set_destination(dest_ip);
         #endif
-        break;
-    case BATTERY_REQ_EVENT:
-        ESP_LOGI(TAG, "Received battery request event");
-        battery_status_req_event_t *battery_req = (battery_status_req_event_t*) event_data;
-        cc_set_address(battery_req->response_address.dest_ip, CONFIG_CAMERA_RX_PORT);
-        int voltage = battery_status_read();
-        send_battery_status(voltage);
-        break;
-    case SERVO_CONTROL_EVENT:
-        ESP_LOGI(TAG, "Received servo control event");
-        servo_control_event_t *servo_event = (servo_control_event_t*) event_data;
-        servo_set_angle(servo_event->angle);
         break;
     default:
         break;
     }
 }
 
+void send_telemetry_task(void *pvParameters) {
+    while (1) {
+        int battery_voltage = battery_status_read();
+        uint8_t current_fps = 1000 / congestion_control_params.tranmission_interval;
+        uint16_t min_frame_latency = rtp_get_last_packet_count() * congestion_control_params.packet_delay;
+        int8_t wifi_rssi = wifi_read_rssi();
+        send_telemetry(battery_voltage, current_fps, min_frame_latency, wifi_rssi);
+        ESP_LOGI(TAG, "telemetry: battery_voltage: %d, current_fps: %d, min_frame_latency: %d, wifi_rssi: %d", battery_voltage, current_fps, min_frame_latency, wifi_rssi);
+        vTaskDelay(2000 / portTICK_PERIOD_MS);
+    }
+}
+
+void send_camera_frame_task(void *pvParameters) {
+    while (1) {
+        rtp_set_packet_delay(congestion_control_params.packet_delay);
+        camera_fb_t* fb = camera_get_frame_buffer();
+        rtp_send_frame(fb->buf, fb->len, fb->width, fb->height);
+        camera_return_frame_buffer(fb);
+        vTaskDelay(congestion_control_params.tranmission_interval / portTICK_PERIOD_MS);
+    }
+}
+
 void app_main(void) {
+    printf("portTICK_PERIOD_MS: %ld\n", portTICK_PERIOD_MS);
     //Initialize NVS
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -78,23 +86,39 @@ void app_main(void) {
     ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
     wifi_init_sta();
 
-    // Create UDP Socket and start listening
-    ESP_LOGI(TAG, "Starting UDP Server");
-    init_control_server();
-    register_control_server_event_handler(control_event_handler);
-    start_control_server();
-
-    // Initialize hardware controller (setting up GPIO Pins)
-    init_hw_controller();
+    // Initialize LED controller
+    #ifdef CONFIG_LIGHT_CONTROL
+    init_led_controller();
+    #endif
 
     // init servo
+    #ifdef CONFIG_SERVO_CONTROL
     init_servo();
+    #endif
+
+    // init motor
+    init_motor();
 
     // Start camera setup
+    congestion_control_params = congestion_control_init();
     #ifdef CONFIG_CAMERA_ENABLED
     camera_init();
+    //xTaskCreate(send_camera_frame_task, "send_camera_frame_task", 4096, NULL, 5, NULL);
     #endif
 
     // Start battery status setup
+    #ifdef CONFIG_BATTERY_STATUS_ENABLED
     battery_status_init();
+    #endif
+
+    // Create UDP Socket and start listening
+    ESP_LOGI(TAG, "Starting TCCP");
+    init_tccp();
+    register_tccp_event_handler(control_event_handler);
+    start_tccp();
+
+    // create a task to send telemetry periodically
+    //#ifdef CONFIG_TELEMETRY_ENABLED
+    xTaskCreate(send_telemetry_task, "send_telemetry_task", 4096, NULL, 5, NULL);
+    //#endif
 }

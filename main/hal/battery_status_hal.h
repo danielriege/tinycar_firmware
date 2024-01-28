@@ -10,9 +10,8 @@
 #include "driver/gpio.h"
 #include "esp_adc_cal.h"
 
-#include "control_client.h"
-#include "protocol.h"
+#include "../protocol/tccp.h"
+#include "pinout.h"
 
 void battery_status_init();
 int battery_status_read();
-void send_battery_status(int);
