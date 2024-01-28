@@ -10,8 +10,16 @@
 #include "esp_log.h"
 #include "nvs_flash.h"
 
+#include "driver/uart_vfs.h"
+
 #include "lwip/err.h"
 #include "lwip/sys.h"
 
-void wifi_init_sta(void);
-int8_t wifi_read_rssi(void);
+
+/// @brief Initialize the wifi module in AP mode
+/// @param ssid The SSID of the access point. 
+/// @param password The password of the access point. 
+/// @return 0 if successful, -1 if failed (could not connect to WiFi)
+int wifi_init_sta(char* ssid, char* password);
+
+int8_t wifi_read_rssi();

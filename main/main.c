@@ -3,11 +3,16 @@
 #include "freertos/task.h"
 #include "freertos/event_groups.h"
 #include "driver/gpio.h"
+#include "driver/usb_serial_jtag.h"
+#include "esp_vfs_usb_serial_jtag.h"
+#include "esp_vfs_dev.h"
+#include "sdkconfig.h"
 
 #include "esp_log.h"
 #include "nvs_flash.h"
 
 #include "wifi.h"
+#include "storage.h"
 #include "protocol/tccp.h"
 #include "protocol/rtp.h"
 
@@ -18,7 +23,6 @@
 #include "hal/motor_hal.h"
 
 #include "congestion_control.h"
-
 
 char *TAG = "main";
 
@@ -72,19 +76,83 @@ void send_camera_frame_task(void *pvParameters) {
     }
 }
 
+void configure_stdin_stdout(void) {
+    static bool configured = false;
+    if (configured) {
+      return;
+    }
+    /* Disable buffering on stdin */
+    setvbuf(stdin, NULL, _IONBF, 0);
+
+    /* Minicom, screen, idf_monitor send CR when ENTER key is pressed */
+    esp_vfs_dev_usb_serial_jtag_set_rx_line_endings(ESP_LINE_ENDINGS_CR);
+    /* Move the caret to the beginning of the next line on '\n' */
+    esp_vfs_dev_usb_serial_jtag_set_tx_line_endings(ESP_LINE_ENDINGS_CRLF);
+
+    /* Enable non-blocking mode on stdin and stdout */
+    fcntl(fileno(stdout), F_SETFL, 0);
+    fcntl(fileno(stdin), F_SETFL, 0);
+
+    usb_serial_jtag_driver_config_t usb_serial_jtag_config;
+    usb_serial_jtag_config.rx_buffer_size = 1024;
+    usb_serial_jtag_config.tx_buffer_size = 1024;
+
+    esp_err_t ret = ESP_OK;
+    /* Install USB-SERIAL-JTAG driver for interrupt-driven reads and writes */
+    ret = usb_serial_jtag_driver_install(&usb_serial_jtag_config);
+    if (ret != ESP_OK) {
+        return;
+    }
+
+    /* Tell vfs to use usb-serial-jtag driver */
+    esp_vfs_usb_serial_jtag_use_driver();
+}
+
 void app_main(void) {
     printf("portTICK_PERIOD_MS: %ld\n", portTICK_PERIOD_MS);
     //Initialize NVS
-    esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-      ESP_ERROR_CHECK(nvs_flash_erase());
-      ret = nvs_flash_init();
-    }
-    ESP_ERROR_CHECK(ret);
+    storage_init();
+
+    // Configure stdin/stdout so we can use std::cout/cin
+    configure_stdin_stdout();
 
     // Initialize WiFi Connection
     ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
-    wifi_init_sta();
+    // read ssid and password from NVS
+    char **ssid = malloc(sizeof(char*));
+    char **password = malloc(sizeof(char*));
+    storage_read_wifi_credentials(ssid, password);
+    if (*ssid == NULL || *password == NULL) {
+        ESP_LOGI(TAG, "Wifi credentials not found in NVS. Using Config from menuconfig.");
+        // Wifi credentials not found in NVS. Use CONFIG_ESP_WIFI_SSID and CONFIG_ESP_WIFI_PASSWORD.
+        *ssid = CONFIG_ESP_WIFI_SSID;
+        *password = CONFIG_ESP_WIFI_PASSWORD;
+    }
+    if (wifi_init_sta(*ssid, *password) < 0) {
+        // Wifi connect to AP failed. Use Serial console to configure Wifi and save config to NVS.
+        printf("Please enter SSID: \n");
+        char ssid[32];
+        if (fgets(ssid, 32, stdin) == NULL) {
+            ESP_LOGE(TAG, "Failed to get SSID");
+        } else {
+            ssid[strcspn(ssid, "\n")] = '\0';
+        }
+
+        printf("SSID: %s\n", ssid);
+
+        printf("Please enter password: \n");
+        char password[64];
+        if (fgets(password, 64, stdin) == NULL) {
+            ESP_LOGE(TAG, "Failed to get SSID");
+        } else {
+            password[strcspn(password, "\n")] = '\0';
+        }
+        printf("Password: %s\n", password);
+        // store ssid and password in NVS
+        storage_write_wifi_credentials(ssid, password);
+        ESP_LOGI(TAG, "Wifi credentials saved to NVS. Please restart the device.");
+        return;
+    }
 
     // Initialize LED controller
     #ifdef CONFIG_LIGHT_CONTROL
