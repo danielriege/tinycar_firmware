@@ -6,7 +6,6 @@
 #include "driver/usb_serial_jtag.h"
 #include "esp_vfs_usb_serial_jtag.h"
 #include "esp_vfs_dev.h"
-#include "sdkconfig.h"
 
 #include "esp_log.h"
 #include "nvs_flash.h"
@@ -116,6 +115,11 @@ void app_main(void) {
     // Configure stdin/stdout so we can use std::cout/cin
     configure_stdin_stdout();
 
+    // Initialize LED controller
+    #ifdef CONFIG_LIGHT_CONTROL
+    init_led_controller();
+    #endif
+
     // Initialize WiFi Connection
     ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
     // read ssid and password from NVS
@@ -130,6 +134,7 @@ void app_main(void) {
     }
     if (wifi_init_sta(*ssid, *password) < 0) {
         // Wifi connect to AP failed. Use Serial console to configure Wifi and save config to NVS.
+        led_set_blinker_mode(3); // turn on hazard blinker to indicate wifi connection failed
         printf("Please enter SSID: \n");
         char ssid[32];
         if (fgets(ssid, 32, stdin) == NULL) {
@@ -153,11 +158,6 @@ void app_main(void) {
         ESP_LOGI(TAG, "Wifi credentials saved to NVS. Please restart the device.");
         return;
     }
-
-    // Initialize LED controller
-    #ifdef CONFIG_LIGHT_CONTROL
-    init_led_controller();
-    #endif
 
     // init servo
     #ifdef CONFIG_SERVO_CONTROL
