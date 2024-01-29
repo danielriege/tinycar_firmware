@@ -91,13 +91,21 @@ static void udp_server_task(void *pvParameters) {
                 // save address for sending back
                 set_address(((struct sockaddr_in *)&source_addr)->sin_addr.s_addr);
 
-                ESP_LOGI(TAG, "Received %d bytes from %s:", len, addr_str);
                 tccp_header_t *header = (tccp_header_t*)rx_buffer;
-                ESP_LOGI(TAG, "Message type: %d", header->type);
                 if (header->type == TCCP_TYPE_CONTROL) {
                     ESP_ERROR_CHECK(esp_event_post_to(tccp_server_handle, CONTROL_EVENT, TCCP_CONTROL_EVENT, rx_buffer, sizeof(tccp_control_t), portMAX_DELAY));
                 } else if (header->type == TCCP_TYPE_TELEMETRY) {
                     ESP_LOGW(TAG, "Not supposed to receive telemetry packets.");
+                } else if (header->type == TCCP_TYPE_STREAM_CONTROL) {
+                    ESP_ERROR_CHECK(esp_event_post_to(tccp_server_handle, CONTROL_EVENT, TCCP_STREAM_CONTROL_EVENT, rx_buffer, sizeof(tccp_stream_control_t), portMAX_DELAY));
+                } else if (header->type == TCCP_TYPE_RTT) {
+                    // RTT packets are not handled by main application but by us directly
+                    tccp_rtt_t rtt_ack;
+                    rtt_ack.header.type = TCCP_TYPE_RTT;
+                    rtt_ack.timestamp = esp_timer_get_time() / 1000;
+                    send_data((uint8_t*)&rtt_ack, sizeof(tccp_rtt_t));
+                } else {
+                    ESP_LOGW(TAG, "Unknown packet type.");
                 }
             }
         }

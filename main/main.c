@@ -6,6 +6,7 @@
 #include "driver/usb_serial_jtag.h"
 #include "esp_vfs_usb_serial_jtag.h"
 #include "esp_vfs_dev.h"
+#include "esp_timer.h"
 
 #include "esp_log.h"
 #include "nvs_flash.h"
@@ -13,7 +14,7 @@
 #include "wifi.h"
 #include "storage.h"
 #include "protocol/tccp.h"
-#include "protocol/rtp.h"
+#include "protocol/tcfp.h"
 
 #include "hal/led_hal.h"
 #include "hal/camera_hal.h"
@@ -26,6 +27,8 @@
 char *TAG = "main";
 
 static congestion_control_t congestion_control_params;
+uint8_t next_frame_start_rtt = 0;
+uint16_t camera_grab_latency = 0;
 
 // event handler from UDP server
 void control_event_handler(void* handler_arg, esp_event_base_t base, int32_t id, void* event_data) {
@@ -45,8 +48,12 @@ void control_event_handler(void* handler_arg, esp_event_base_t base, int32_t id,
         // set destination for rtp
         in_addr_t* dest_ip = get_address_ref();
         #ifdef CONFIG_CAMERA_ENABLED
-        rtp_set_destination(dest_ip);
+        tcfp_set_destination(dest_ip);
         #endif
+        break;
+    case TCCP_STREAM_CONTROL_EVENT: ;
+        tccp_stream_control_t *stream_control = (tccp_stream_control_t*) event_data;
+        ESP_LOGI(TAG, "Received stream control event packet_loss: %d", stream_control->packet_loss);
         break;
     default:
         break;
@@ -57,20 +64,23 @@ void send_telemetry_task(void *pvParameters) {
     while (1) {
         int battery_voltage = battery_status_read();
         uint8_t current_fps = 1000 / congestion_control_params.tranmission_interval;
-        uint16_t min_frame_latency = rtp_get_last_packet_count() * congestion_control_params.packet_delay;
+        uint16_t min_frame_latency = camera_grab_latency;
         int8_t wifi_rssi = wifi_read_rssi();
         send_telemetry(battery_voltage, current_fps, min_frame_latency, wifi_rssi);
         ESP_LOGI(TAG, "telemetry: battery_voltage: %d, current_fps: %d, min_frame_latency: %d, wifi_rssi: %d", battery_voltage, current_fps, min_frame_latency, wifi_rssi);
+        next_frame_start_rtt = 1; // so we start frame latency measurement every 2 s
         vTaskDelay(2000 / portTICK_PERIOD_MS);
     }
 }
 
 void send_camera_frame_task(void *pvParameters) {
     while (1) {
-        rtp_set_packet_delay(congestion_control_params.packet_delay);
+        uint32_t timestamp = esp_timer_get_time() / 1000;
         camera_fb_t* fb = camera_get_frame_buffer();
-        rtp_send_frame(fb->buf, fb->len, fb->width, fb->height);
+        camera_grab_latency = (esp_timer_get_time() / 1000) - timestamp;
+        tcfp_send_frame(fb->buf, fb->len, fb->width, fb->height, next_frame_start_rtt);
         camera_return_frame_buffer(fb);
+        next_frame_start_rtt = 0;
         vTaskDelay(congestion_control_params.tranmission_interval / portTICK_PERIOD_MS);
     }
 }
@@ -162,6 +172,7 @@ void app_main(void) {
     // init servo
     #ifdef CONFIG_SERVO_CONTROL
     init_servo();
+    servo_set_angle(9000);
     #endif
 
     // init motor
@@ -171,11 +182,11 @@ void app_main(void) {
     congestion_control_params = congestion_control_init();
     #ifdef CONFIG_CAMERA_ENABLED
     camera_init();
-    //xTaskCreate(send_camera_frame_task, "send_camera_frame_task", 4096, NULL, 5, NULL);
+    xTaskCreate(send_camera_frame_task, "send_camera_frame_task", 4096, NULL, 5, NULL);
     #endif
 
     // Start battery status setup
-    #ifdef CONFIG_BATTERY_STATUS_ENABLED
+    #ifdef CONFIG_BATTERY_MEASUREMENT
     battery_status_init();
     #endif
 

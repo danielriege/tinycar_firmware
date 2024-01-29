@@ -25,7 +25,7 @@ void battery_status_init() {
 }
 
 int battery_status_read() {
-    #ifdef CONFIG_BATTERY_STATUS_ENABLED
+    #ifdef CONFIG_BATTERY_MEASUREMENT
     //gpio_set_level(PIN_BAT_ADC_EN, 1);
     //int adc_voltage = adc_to_voltage(adc1_get_raw(ADC1_CHANNEL_0)); // in mV
     int adc_voltage = esp_adc_cal_raw_to_voltage(adc1_get_raw(ADC1_CHANNEL_0), &adc1_chars);

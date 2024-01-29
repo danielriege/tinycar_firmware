@@ -15,8 +15,8 @@
 #define MAX_FPS 30
 
 typedef struct {
-    uint8_t packet_delay; // milliseconds
-    uint8_t tranmission_interval; // milliseconds 
+    // delay between frames
+    uint16_t tranmission_interval; // milliseconds 
 } congestion_control_t;
 
 void update_congestion_control(congestion_control_t* congestion_control_parameters);

@@ -11,6 +11,7 @@
 #include <sys/param.h>
 #include "freertos/event_groups.h"
 #include "esp_system.h"
+#include "esp_timer.h"
 #include "esp_event.h"
 #include "nvs_flash.h"
 #include "esp_netif.h"
@@ -24,10 +25,12 @@
 
 #define TCCP_TYPE_CONTROL 0x00
 #define TCCP_TYPE_TELEMETRY 0x01
+#define TCCP_TYPE_STREAM_CONTROL 0x02
+#define TCCP_TYPE_RTT 0x03
 
 typedef struct {
-    uint8_t type: 1; // 0 = control, 1 = telemetry
-    uint8_t padding: 7;
+    uint8_t type: 2; // 0 = control, 1 = telemetry, 2 = stream control, 3 = rtt
+    uint8_t padding: 6;
 } tccp_header_t;
 
 typedef struct {
@@ -48,10 +51,21 @@ typedef struct {
     int8_t motor_duty_cycle; // -255-255
 } tccp_control_t;
 
+typedef struct {
+    tccp_header_t header;
+    uint8_t packet_loss;
+} tccp_stream_control_t;
+
+typedef struct {
+    tccp_header_t header;
+    uint32_t timestamp;
+} tccp_rtt_t;
+
 ESP_EVENT_DECLARE_BASE(CONTROL_EVENT);
 
 enum {
-    TCCP_CONTROL_EVENT
+    TCCP_CONTROL_EVENT,
+    TCCP_STREAM_CONTROL_EVENT
 };
 
 void init_tccp(void);
